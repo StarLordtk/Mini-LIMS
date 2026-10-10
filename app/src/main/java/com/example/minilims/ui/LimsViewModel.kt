@@ -24,6 +24,40 @@ class LimsViewModel(app: Application) : AndroidViewModel(app) {
     val samples = repo.samples.hot()
     val labName = MutableStateFlow(prefs.getString("lab", "My Laboratory") ?: "My Laboratory")
 
+    init {
+        // First launch: load the bundled Suraha rate chart (once, only if there are no tests yet).
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!prefs.getBoolean("seeded", false)) {
+                if (repo.testCount() == 0) {
+                    try { repo.importTests(CsvImport.parse(readBundledChart())) } catch (e: Exception) { }
+                }
+                prefs.edit().putBoolean("seeded", true).apply()
+            }
+        }
+    }
+
+    private fun readBundledChart(): String =
+        getApplication<Application>().assets.open("test_rate_chart.csv").bufferedReader().use { it.readText() }
+
+    private fun summary(r: ImportResult) = "Added ${r.added}, updated ${r.updated}, skipped ${r.skipped}."
+
+    fun importTestsFrom(uri: Uri, onResult: (String) -> Unit) = viewModelScope.launch {
+        val ctx = getApplication<Application>()
+        val text = withContext(Dispatchers.IO) {
+            try { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
+            catch (e: Exception) { null }
+        }
+        if (text == null) { onResult("Couldn't read that file."); return@launch }
+        val rows = withContext(Dispatchers.Default) { CsvImport.parse(text) }
+        if (rows.isEmpty()) { onResult("No tests found. The CSV needs at least Test Name and Rate columns."); return@launch }
+        onResult(summary(repo.importTests(rows)))
+    }
+
+    fun reloadBundledChart(onResult: (String) -> Unit) = viewModelScope.launch {
+        val rows = withContext(Dispatchers.IO) { CsvImport.parse(readBundledChart()) }
+        onResult(summary(repo.importTests(rows)))
+    }
+
     fun setLabName(v: String) { prefs.edit().putString("lab", v).apply(); labName.value = v }
 
     fun patientRates(patientId: Long) = repo.patientRates(patientId)

@@ -17,6 +17,9 @@ interface TestDao {
     @Insert suspend fun insert(t: LabTest): Long
     @Update suspend fun update(t: LabTest)
     @Query("DELETE FROM tests WHERE id=:id") suspend fun delete(id: Long)
+    @Insert suspend fun insertAll(list: List<LabTest>)
+    @Query("SELECT * FROM tests") suspend fun getAll(): List<LabTest>
+    @Query("SELECT COUNT(*) FROM tests") suspend fun count(): Int
     @Query("SELECT * FROM tests ORDER BY name") fun observeAll(): Flow<List<LabTest>>
 }
 
@@ -50,14 +53,14 @@ interface SampleDao {
 
     @Query(
         "SELECT t.id AS testId, t.code AS code, t.name AS name, t.unit AS unit, t.refRange AS refRange, " +
-        "st.rateApplied AS rateApplied, st.result AS result " +
+        "st.rateApplied AS rateApplied, st.result AS result, st.labChargeApplied AS labChargeApplied " +
         "FROM sample_tests st JOIN tests t ON t.id = st.testId WHERE st.sampleId=:sampleId ORDER BY t.name"
     )
     fun observeLines(sampleId: Long): Flow<List<SampleTestRow>>
 
     @Query(
         "SELECT t.id AS testId, t.code AS code, t.name AS name, t.unit AS unit, t.refRange AS refRange, " +
-        "st.rateApplied AS rateApplied, st.result AS result " +
+        "st.rateApplied AS rateApplied, st.result AS result, st.labChargeApplied AS labChargeApplied " +
         "FROM sample_tests st JOIN tests t ON t.id = st.testId WHERE st.sampleId=:sampleId ORDER BY t.name"
     )
     suspend fun lines(sampleId: Long): List<SampleTestRow>

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -53,6 +54,10 @@ fun SettingsScreen(vm: LimsViewModel) {
     val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) restoreUri = uri
     }
+    val pickCsv = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { busy = true; vm.importTestsFrom(uri) { busy = false; message = it } }
+    }
+    var confirmChart by remember { mutableStateOf(false) }
 
     fun finish(err: String?) {
         busy = false
@@ -65,6 +70,19 @@ fun SettingsScreen(vm: LimsViewModel) {
         SectionLabel("Laboratory")
         Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = softCardColors()) {
             SettingRow(Icons.Default.Edit, "Lab name", lab) { labDialog = true }
+        }
+
+        SectionLabel("Test list and rates")
+        Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = softCardColors()) {
+            Column {
+                SettingRow(Icons.Default.Add, "Import tests from CSV",
+                    "Columns: Test Name, Patient Charge, Lab Charge, Sample Type, Report Day. Existing tests are updated by name.") {
+                    pickCsv.launch(arrayOf("*/*"))
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SettingRow(Icons.Default.Refresh, "Reset to Suraha rate chart",
+                    "Reload the 550 bundled tests with patient charges and lab charges") { confirmChart = true }
+            }
         }
 
         SectionLabel("Backup and restore")
@@ -90,7 +108,7 @@ fun SettingsScreen(vm: LimsViewModel) {
 
         SectionLabel("About")
         Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = softCardColors()) {
-            SettingRow(Icons.Default.Info, "MiniLIMS 0.2", "Works offline. All data stays on this device.") {}
+            SettingRow(Icons.Default.Info, "MiniLIMS 0.4", "Works offline. All data stays on this device.") {}
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -107,6 +125,12 @@ fun SettingsScreen(vm: LimsViewModel) {
             onDismiss = { restoreUri = null }
         )
     }
+    if (confirmChart) ConfirmDialog(
+        "Reload the bundled Suraha rate chart? Patient and lab charges of matching tests are overwritten with the chart values. Special per-patient rates and past samples are not changed.",
+        "Reload",
+        onConfirm = { confirmChart = false; busy = true; vm.reloadBundledChart { busy = false; message = it } },
+        onDismiss = { confirmChart = false }
+    )
     if (confirmUndo) ConfirmDialog(
         "Go back to the data you had before the last restore? The app will restart.", "Undo restore",
         onConfirm = { confirmUndo = false; busy = true; vm.undoRestore { finish(it) } },

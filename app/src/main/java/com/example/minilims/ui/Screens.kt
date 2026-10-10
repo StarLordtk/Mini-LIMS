@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
@@ -37,7 +39,7 @@ fun FormDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 labels.forEachIndexed { i, l ->
                     OutlinedTextField(values[i], { values[i] = it }, label = { Text(l) }, singleLine = true)
                 }
@@ -207,14 +209,19 @@ fun PatientRatesDialog(vm: LimsViewModel, patient: Patient, onDismiss: () -> Uni
     val tests by vm.tests.collectAsState()
     val existing by remember(patient) { vm.patientRates(patient.id) }.collectAsState(emptyList())
     val edits = remember { mutableStateMapOf<Long, String>() }
+    var q by remember { mutableStateOf("") }
+    val shownTests = tests.filter { q.isBlank() || it.name.contains(q, true) || it.code.contains(q, true) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Special rates – ${patient.name}") },
         text = {
             if (tests.isEmpty()) Text("Add tests first.")
-            else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(tests, key = { it.id }) { t ->
-                    val current = existing.firstOrNull { it.testId == t.id }?.rate?.toString() ?: ""
+            else Column {
+                SearchField(q, { q = it }, "Search tests")
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(shownTests, key = { it.id }) { t ->
+                    val current = existing.firstOrNull { it.testId == t.id }?.rate?.let { plain(it) } ?: ""
                     OutlinedTextField(
                         value = edits[t.id] ?: current,
                         onValueChange = { edits[t.id] = it },
@@ -222,6 +229,7 @@ fun PatientRatesDialog(vm: LimsViewModel, patient: Patient, onDismiss: () -> Uni
                         supportingText = { Text("Leave empty to use the default rate") },
                         singleLine = true
                     )
+                }
                 }
             }
         },
@@ -244,7 +252,7 @@ fun TestsScreen(vm: LimsViewModel) {
     var deleting by remember { mutableStateOf<LabTest?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
-    val labels = listOf("Code", "Name", "Default rate", "Unit", "Reference range")
+    val labels = listOf("Code", "Name", "Default rate", "Unit", "Reference range", "Sample type", "Report day", "Lab charge (our cost)")
     val shown = tests.filter { query.isBlank() || it.name.contains(query, true) || it.code.contains(query, true) }
 
     Box(Modifier.fillMaxSize()) {
@@ -267,8 +275,15 @@ fun TestsScreen(vm: LimsViewModel) {
                                 Text(t.name, style = MaterialTheme.typography.titleMedium)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Pill(t.code)
-                                    val extra = listOf(t.unit, t.refRange).filter { it.isNotBlank() }.joinToString(" • ")
+                                    if (t.sampleType.isNotBlank()) Pill(t.sampleType)
+                                    val extra = listOf(t.reportDay, t.unit, t.refRange).filter { it.isNotBlank() }.joinToString(" • ")
                                     if (extra.isNotBlank()) Text(extra, style = MaterialTheme.typography.labelMedium, color = subtle)
+                                }
+                                if (t.labCharge > 0) {
+                                    val margin = t.rate - t.labCharge
+                                    Text("Lab ${money(t.labCharge)} • Margin ${money(margin)}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (margin < 0) MaterialTheme.colorScheme.error else subtle)
                                 }
                             }
                             Text(money(t.rate), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
@@ -292,7 +307,7 @@ fun TestsScreen(vm: LimsViewModel) {
     if (adding) FormDialog("New test", labels, onDismiss = { adding = false }) { v ->
         val rate = v[2].toDoubleOrNull()
         if (v[0].isNotBlank() && v[1].isNotBlank() && rate != null) {
-            vm.addTest(LabTest(code = v[0].trim(), name = v[1].trim(), rate = rate, unit = v[3].trim(), refRange = v[4].trim())) { ok ->
+            vm.addTest(LabTest(code = v[0].trim(), name = v[1].trim(), rate = rate, unit = v[3].trim(), refRange = v[4].trim(), sampleType = v[5].trim(), reportDay = v[6].trim(), labCharge = v[7].toDoubleOrNull() ?: 0.0)) { ok ->
                 if (!ok) message = "That test code already exists."
             }
         }
@@ -300,11 +315,11 @@ fun TestsScreen(vm: LimsViewModel) {
     }
     editing?.let { t ->
         FormDialog("Edit test", labels,
-            listOf(t.code, t.name, t.rate.toString(), t.unit, t.refRange),
+            listOf(t.code, t.name, plain(t.rate), t.unit, t.refRange, t.sampleType, t.reportDay, if (t.labCharge > 0) plain(t.labCharge) else ""),
             onDismiss = { editing = null }) { v ->
             val rate = v[2].toDoubleOrNull()
             if (v[0].isNotBlank() && v[1].isNotBlank() && rate != null) {
-                vm.updateTest(t.copy(code = v[0].trim(), name = v[1].trim(), rate = rate, unit = v[3].trim(), refRange = v[4].trim())) { ok ->
+                vm.updateTest(t.copy(code = v[0].trim(), name = v[1].trim(), rate = rate, unit = v[3].trim(), refRange = v[4].trim(), sampleType = v[5].trim(), reportDay = v[6].trim(), labCharge = v[7].toDoubleOrNull() ?: 0.0)) { ok ->
                     if (!ok) message = "That test code already exists."
                 }
             }

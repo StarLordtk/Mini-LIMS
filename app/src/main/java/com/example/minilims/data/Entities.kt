@@ -23,7 +23,11 @@ data class LabTest(
     val name: String,
     val rate: Double,
     val unit: String = "",
-    val refRange: String = ""
+    val refRange: String = "",
+    val sampleType: String = "",
+    val reportDay: String = "",
+    /** What the lab charges us for this test (our cost). Margin = rate - labCharge. */
+    val labCharge: Double = 0.0
 )
 
 /** Optional per-patient (or per-client) override of a test's rate. */
@@ -66,7 +70,8 @@ data class SampleTest(
     val sampleId: Long,
     val testId: Long,
     val rateApplied: Double,
-    val result: String = ""
+    val result: String = "",
+    val labChargeApplied: Double = 0.0
 )
 
 /** Read-only rows for queries. */
@@ -86,5 +91,6 @@ data class SampleTestRow(
     val unit: String,
     val refRange: String,
     val rateApplied: Double,
-    val result: String
+    val result: String,
+    val labChargeApplied: Double
 )

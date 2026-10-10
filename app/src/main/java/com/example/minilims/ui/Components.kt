@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 
 fun money(v: Double) = "%.2f".format(v)
 
+/** 3500.0 -> "3500", 12.5 -> "12.5" (for editing fields). */
+fun plain(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
+
 val subtle: Color
     @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
 

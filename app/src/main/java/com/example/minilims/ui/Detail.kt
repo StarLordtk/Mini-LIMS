@@ -118,6 +118,25 @@ fun SampleDetailScreen(vm: LimsViewModel, id: Long, onClose: () -> Unit) {
                     }
                 }
             }
+            item {
+                val cost = lines.sumOf { it.labChargeApplied }
+                if (cost > 0) {
+                    val margin = sample.total - cost
+                    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = softCardColors()) {
+                        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                            Column {
+                                Text("Lab charges (internal)", style = MaterialTheme.typography.labelMedium, color = subtle)
+                                Text(money(cost), style = MaterialTheme.typography.titleMedium)
+                            }
+                            Column {
+                                Text("Margin", style = MaterialTheme.typography.labelMedium, color = subtle)
+                                Text(money(margin), style = MaterialTheme.typography.titleMedium,
+                                    color = if (margin < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
             item { SectionLabel("Results") }
             items(lines, key = { it.testId }) { l ->
                 val hint = listOf(l.unit, l.refRange.takeIf { it.isNotBlank() }?.let { "ref $it" })
@@ -157,6 +176,7 @@ fun NewSampleScreen(vm: LimsViewModel, onClose: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<Long>()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var testQuery by remember { mutableStateOf("") }
 
     val ratesFlow = remember(patient) {
         patient?.let { vm.patientRates(it.id) } ?: flowOf(emptyList<PatientRate>())
@@ -165,6 +185,10 @@ fun NewSampleScreen(vm: LimsViewModel, onClose: () -> Unit) {
     fun rateOf(t: LabTest) = overrides.firstOrNull { it.testId == t.id }?.rate ?: t.rate
     val chosen = tests.filter { it.id in selected }
     val total = chosen.sumOf { rateOf(it) }
+    val shownTests = tests.filter {
+        testQuery.isBlank() || it.name.contains(testQuery, true) || it.code.contains(testQuery, true)
+    }
+    val tubes = chosen.flatMap { it.sampleType.split(",") }.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     if (scanning) {
         ScannerOverlay(onResult = { barcode = it; scanning = false }, onCancel = { scanning = false })
@@ -186,6 +210,8 @@ fun NewSampleScreen(vm: LimsViewModel, onClose: () -> Unit) {
                     Column(Modifier.weight(1f)) {
                         Text("Total", style = MaterialTheme.typography.labelMedium, color = subtle)
                         Text(money(total), style = MaterialTheme.typography.titleLarge)
+                        if (tubes.isNotEmpty()) Text("Tubes: " + tubes.joinToString(", "),
+                            style = MaterialTheme.typography.labelSmall, color = subtle)
                     }
                     Button(
                         enabled = barcode.isNotBlank() && patient != null && chosen.isNotEmpty(),
@@ -228,9 +254,11 @@ fun NewSampleScreen(vm: LimsViewModel, onClose: () -> Unit) {
                     }
                 }
             }
-            item { SectionLabel("Tests") }
+            item { SectionLabel("Tests (${chosen.size} selected)") }
+            item { SearchField(testQuery, { testQuery = it }, "Search tests by name or code") }
             if (tests.isEmpty()) item { Text("No tests yet. Add some on the Tests tab.", color = subtle) }
-            items(tests, key = { it.id }) { t ->
+            else if (shownTests.isEmpty()) item { Text("No matching tests.", color = subtle) }
+            items(shownTests, key = { it.id }) { t ->
                 val on = t.id in selected
                 Card(
                     Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).clickable {
@@ -246,7 +274,8 @@ fun NewSampleScreen(vm: LimsViewModel, onClose: () -> Unit) {
                         Checkbox(on, null, Modifier.padding(8.dp))
                         Column(Modifier.weight(1f)) {
                             Text(t.name, style = MaterialTheme.typography.titleMedium)
-                            Text(t.code, style = MaterialTheme.typography.labelMedium, color = subtle)
+                            Text(listOf(t.code, t.sampleType, t.reportDay).filter { it.isNotBlank() }.joinToString(" • "),
+                                style = MaterialTheme.typography.labelMedium, color = subtle)
                         }
                         Text(money(rateOf(t)), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(end = 8.dp))
                     }
