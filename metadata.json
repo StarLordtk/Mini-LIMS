@@ -1,0 +1,6 @@
+{
+  "name": "MiniLIMS",
+  "description": "Mini-LIMS: A laboratory information management system for tracking samples, batches, tests, and rates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

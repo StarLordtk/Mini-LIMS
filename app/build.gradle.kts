@@ -8,11 +8,24 @@ android {
     namespace = "com.example.minilims"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.example.minilims"
+        applicationId = "com.aistudio.minilims.jtwqka"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+    }
+    signingConfigs {
+        create("debugConfig") {
+            storeFile = file("${rootDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debugConfig")
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
